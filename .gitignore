@@ -59,6 +59,10 @@ ipch/
 *.sdf
 *.cachefile
 
+# New intellisense format (VS 2015)
+*.VC.db
+*.VC.opendb
+
 # Visual Studio profiler
 *.psess
 *.vsp
