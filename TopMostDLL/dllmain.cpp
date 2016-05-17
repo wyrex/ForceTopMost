@@ -26,16 +26,10 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 #pragma comment(linker, "/section:.SHARED,rws")
 #pragma data_seg(".SHARED") 
 HHOOK g_hhkCallWndProc = NULL;
-HHOOK mouseProc = NULL;
+HHOOK g_hhkGetMsgProc = NULL;
 #pragma data_seg()
 
-//from here on variables are instanced for calling process (default)
-static bool selected = false, cur_topmost = false;
-HWND cur_hwnd = NULL;
-HMENU cur_menu = NULL;
-int cur_menu_count = 0;
-
-//Hook window proc
+//window proc
 LRESULT CALLBACK CallWndProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
 	/* If nCode is greater than or equal to HC_ACTION,
@@ -44,53 +38,42 @@ LRESULT CALLBACK CallWndProc(int nCode, WPARAM wParam, LPARAM lParam)
 	{
 		const LPCWPSTRUCT lpcwprs = (LPCWPSTRUCT)lParam;
 		HMENU menu = NULL;
-		bool found = false;
+		BOOL found = false;
+		BOOL checked = false;
+		UINT state;
 
 		switch (lpcwprs->message)
 		{
 		case WM_INITMENUPOPUP:
+			// If the menu is the window menu, this parameter is TRUE; 
+			if ((BOOL)HIWORD(lpcwprs->lParam) == FALSE) 
+				break;
+
 			menu = GetSystemMenu(lpcwprs->hwnd, FALSE);
 			if (menu == NULL)
 				break;
 
-			cur_menu = menu;
-			cur_menu_count = GetMenuItemCount(menu);
+			checked = (GetWindowLongPtr(lpcwprs->hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST) != 0;
 
-			for (int i = 0; i < cur_menu_count; ++i)
+			if (state = GetMenuState(menu, ITEM_ID, MF_BYCOMMAND) == -1)
 			{
 				MENUITEMINFO info;
-				info.cbSize = sizeof(MENUITEMINFO);
-				info.fMask = MIIM_ID;
-				GetMenuItemInfo(menu, i, TRUE, &info);
-				if (info.wID == ITEM_ID)
-				{
-					found = true;
-					break;
-				}
+				info.cbSize = sizeof(info);
+				info.fMask = MIIM_CHECKMARKS | MIIM_STATE | MIIM_ID | MIIM_STRING;
+				info.hbmpChecked = NULL;
+				info.hbmpUnchecked = NULL;
+				info.wID = ITEM_ID;
+				info.dwTypeData = L"Always on top";
+				info.fState = checked ? MF_CHECKED : MF_UNCHECKED;
+				InsertMenuItem(menu, SC_CLOSE, FALSE, &info);
 			}
-
-			if (!found)
-			{
-				AppendMenu(menu, MF_STRING | MF_UNCHECKED, ITEM_ID, L"Always on top");
-				++cur_menu_count;
-			}
-				
-			cur_hwnd = lpcwprs->hwnd;
-			cur_topmost = GetWindowLong(cur_hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST;
 
 			break;
-		case WM_MENUSELECT:
-			if (LOWORD(lpcwprs->wParam) == ITEM_ID)
+		case WM_UNINITMENUPOPUP:
+			if ((HIWORD(lpcwprs->lParam) & MF_SYSMENU) != 0)
 			{
-				if (HIWORD(lpcwprs->wParam) & MF_SYSMENU)
-				{
-					selected = true; //mouse hovers on top of menu our menu item
-				}
-			}
-			else
-			{
-				selected = false;
-			}
+				DeleteMenu((HMENU)lpcwprs->wParam, ITEM_ID, MF_BYCOMMAND);
+			}	
 
 			break;
 		default:
@@ -101,55 +84,39 @@ LRESULT CALLBACK CallWndProc(int nCode, WPARAM wParam, LPARAM lParam)
 	return CallNextHookEx(g_hhkCallWndProc, nCode, wParam, lParam);
 }
 
-//Hook mouse proc
-LRESULT CALLBACK MouseProc(int nCode, WPARAM wParam, LPARAM lParam)
+//thread message queue
+LRESULT CALLBACK GetMsgProc(INT code, WPARAM wParam, LPARAM lParam)
 {
-	switch (wParam)
+	LPMSG msg = (LPMSG)lParam;
+	
+	if (code == HC_ACTION)
 	{
-	case WM_LBUTTONDOWN:
-		if (selected)
+		if (msg->message == WM_SYSCOMMAND && msg->wParam == ITEM_ID)
 		{
-			selected = false;
-			if (cur_hwnd != NULL)
-			{
-				if (!cur_topmost)
-					SetWindowPos(cur_hwnd, HWND_TOPMOST, 100,100,100,100, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
-				else
-					SetWindowPos(cur_hwnd, HWND_NOTOPMOST, 100, 100, 100, 100, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
-
-				cur_topmost = !cur_topmost;
-
-				MENUITEMINFO info;
-				info.cbSize = sizeof(MENUITEMINFO);
-				info.fMask = MIIM_STATE;
-
-				if (!GetMenuItemInfo(cur_menu, ITEM_ID, FALSE, &info))
-					MessageBox(NULL, L"Failed to find menu item (ForceTopMost.exe)", L"Error", MB_OK);
-				
-				if (info.fState & MFS_CHECKED)
-				{
-					info.fState = MFS_UNCHECKED;
-					info.fMask = MIIM_STATE;
-					SetMenuItemInfo(cur_menu, cur_menu_count-1, TRUE, &info);
-				}
-				else
-				{
-					info.fState = MFS_CHECKED;
-					info.fMask = MIIM_STATE;
-					SetMenuItemInfo(cur_menu, cur_menu_count - 1, TRUE, &info);
-				}
-			}
-		}
-
-		break;
+			SetWindowPos(msg->hwnd, (GetWindowLongPtr(msg->hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST) == 0 ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+			SetFocus(msg->hwnd);
+		}	
 	}
 
-	return CallNextHookEx(mouseProc, nCode, wParam, lParam);
+	return CallNextHookEx(NULL, code, wParam, lParam);
 }
 
 //export as C code for sane symbol names
 extern "C"
 {
+	__declspec(dllexport) void Pump(void)
+	{
+		MSG msg;
+		BOOL ret;
+
+		//message pump
+		while (GetMessage(&msg, NULL, 0, 0))
+		{
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+	}
+
 	__declspec(dllexport) BOOL InstallHook(void)
 	{
 		if (!g_hhkCallWndProc)
@@ -161,45 +128,42 @@ extern "C"
 				return FALSE;
 			}
 		}
-
-		if (!mouseProc)
+		
+		if (!g_hhkGetMsgProc)
 		{
-			mouseProc = SetWindowsHookEx(WH_MOUSE_LL, MouseProc, g_hinstDLL, 0);
-			if (!mouseProc)
+			g_hhkGetMsgProc = SetWindowsHookEx(WH_GETMESSAGE, GetMsgProc, g_hinstDLL, 0);
+			if (!g_hhkGetMsgProc)
 			{
-				MessageBox(NULL, L"Mouse Hook installation failed!", L"Error", MB_OK);
+				MessageBox(NULL, L"MsgProc Hook installation failed!", L"Error", MB_OK);
 				return FALSE;
 			}
 		}
 
-		MessageBox(NULL, L"Hooks installed", L"Info", MB_OK);
 		return TRUE;
 	}
 
 	__declspec(dllexport) BOOL RemoveHook(void)
 	{
-		/* Try to remove the WH_CALLWNDPROCRET hook, if it is installed. */
 		if (g_hhkCallWndProc)
 		{
 			if (!UnhookWindowsHookEx(g_hhkCallWndProc))
 			{
-				MessageBox(NULL, L"Hook uninstall failed!", L"Error", MB_OK);
+				MessageBox(NULL, L"Hook remove failed!", L"Error", MB_OK);
 				return FALSE;
 			}
 			g_hhkCallWndProc = NULL;
 		}
-		
-		if (!mouseProc)
+
+		if (g_hhkGetMsgProc)
 		{
-			if (!UnhookWindowsHookEx(mouseProc))
+			if (!UnhookWindowsHookEx(g_hhkGetMsgProc))
 			{
-				MessageBox(NULL, L"Mouse Hook uninstall failed!", L"Error", MB_OK);
+				MessageBox(NULL, L"MsgProc hook remove failed!", L"Error", MB_OK);
 				return FALSE;
 			}
-			mouseProc = NULL;
+			g_hhkGetMsgProc = NULL;
 		}
 		
-		MessageBox(NULL, L"Hooks removed", L"Info", MB_OK);
 		return TRUE;
 	}
 }

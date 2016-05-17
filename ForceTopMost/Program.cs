@@ -17,6 +17,9 @@ namespace ForceTopMost
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool RemoveHook();
 
+        [DllImport("TopMostDLL.dll", CharSet = CharSet.Ansi, EntryPoint = "Pump")]
+        public static extern void Pump();
+
         /// <summary>
         /// The main entry point for the application.
         /// </summary>

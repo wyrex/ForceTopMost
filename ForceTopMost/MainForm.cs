@@ -1,17 +1,12 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace ForceTopMost
 {
     public partial class MainForm : Form
     {
+        bool isActive = false;
+
         public MainForm()
         {
             InitializeComponent();
@@ -20,11 +15,21 @@ namespace ForceTopMost
         private void button1_Click(object sender, EventArgs e)
         {
             Program.InstallHook();
+            isActive = true;
+            MainForm.ActiveForm.Focus();
+            Program.Pump();
         }
 
         private void button2_Click(object sender, EventArgs e)
         {
             Program.RemoveHook();
+            isActive = false;
+        }
+
+        private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            if (isActive)
+                Program.RemoveHook();
         }
     }
 }
