@@ -1,9 +1,12 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2013
-VisualStudioVersion = 12.0.30501.0
+# Visual Studio 14
+VisualStudioVersion = 14.0.25123.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ForceTopMost", "ForceTopMost\ForceTopMost.csproj", "{942BA9DF-0817-40AF-90B5-3C48D13A37C8}"
+	ProjectSection(ProjectDependencies) = postProject
+		{D1FBA6B3-B327-4150-B5B1-501AEC7ABD52} = {D1FBA6B3-B327-4150-B5B1-501AEC7ABD52}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TopMostDLL", "TopMostDLL\TopMostDLL.vcxproj", "{D1FBA6B3-B327-4150-B5B1-501AEC7ABD52}"
 EndProject
