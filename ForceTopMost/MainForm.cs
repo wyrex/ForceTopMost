@@ -70,25 +70,31 @@ namespace ForceTopMost
         private void notifyIcon_Click(object Sender, EventArgs e)
         {
             if (this.Visible)
+            {
                 this.Hide();
+            }
             else
+            {
                 this.Show();
+                this.WindowState = FormWindowState.Normal;
+            }
 
+            ShowInTaskbar = Visible;
             Opacity = Visible ? 100 : 0;
         }
 
         private void button1_Click(object sender, EventArgs e)
         {
-            Program.InstallHook();
-            isActive = true;
-            MainForm.ActiveForm.Focus();
+            isActive = Program.InstallHook();
+            menuItems[0].Text = isActive ? "D&isable" : "E&nable";
+            ActiveForm.Focus();
             Program.Pump();
         }
 
         private void button2_Click(object sender, EventArgs e)
         {
-            Program.RemoveHook();
-            isActive = false;
+            isActive = !Program.RemoveHook();
+            menuItems[0].Text = isActive ? "D&isable" : "E&nable";
         }
 
         private void MainForm_Load(object sender, EventArgs e)
@@ -96,6 +102,7 @@ namespace ForceTopMost
             BeginInvoke(new MethodInvoker(delegate
             {
                 Application.ApplicationExit += new EventHandler(OnApplicationExit);
+                Resize += new EventHandler(MainForm_Resize);
                 Hide();
             }));
         }
@@ -113,6 +120,16 @@ namespace ForceTopMost
             }
 
             Program.UnloadModule("TopMostDLL.dll");
+        }
+
+        //minimize to tray
+        private void MainForm_Resize(object sender, EventArgs e)
+        {
+            if (WindowState == FormWindowState.Minimized)
+            {
+                ShowInTaskbar = false;
+                Hide();
+            }
         }
     }
 }
